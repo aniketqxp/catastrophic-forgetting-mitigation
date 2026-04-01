@@ -25,26 +25,27 @@ class ReplayBuffer:
 
     def add(self, images, labels):
         """
-        Add samples to the buffer.
-        
-        Args:
-            images: Tensor of image data
-            labels: Tensor of corresponding labels
+        Add samples to the buffer using random replacement if capacity is reached.
         """
         if isinstance(images, torch.Tensor):
-            self.data.extend([images[i] for i in range(images.size(0))])
+            new_images = [images[i] for i in range(images.size(0))]
         else:
-            self.data.extend(images)
+            new_images = images
         
         if isinstance(labels, torch.Tensor):
-            self.labels.extend(labels.tolist())
+            new_labels = labels.tolist()
         else:
-            self.labels.extend(labels)
-        
-        # Keep buffer size within capacity
-        if len(self.data) > self.capacity:
-            self.data = self.data[-self.capacity:]
-            self.labels = self.labels[-self.capacity:]
+            new_labels = labels
+
+        for img, lbl in zip(new_images, new_labels):
+            if len(self.data) < self.capacity:
+                self.data.append(img)
+                self.labels.append(lbl)
+            else:
+                # Randomly replace an existing sample (Reservoir-style)
+                idx = random.randint(0, self.capacity - 1)
+                self.data[idx] = img
+                self.labels[idx] = lbl
 
     def sample(self, batch_size: int):
         """

@@ -18,10 +18,11 @@ This project evaluates three categories of mitigation strategies on **Split-MNIS
 
 1. **Baseline (No Mitigation)**: Standard sequential training on tasks
 2. **L2 Regularization**: Constrains parameter changes to stay close to initial values from previous tasks
-3. **Synaptic Intelligence (SI)**: Tracks parameter importance and penalizes changes to important weights
-4. **PackNet**: Prunes and freezes task-specific subnetworks to prevent interference
-5. **Experience Replay**: Stores and replays samples from previous tasks during training
-6. **Naive Rehearsal**: Combines current task with stored replay data
+3. **Elastic Weight Consolidation (EWC)**: Uses the Fisher Information Matrix to selectively protect parameters crucial for past tasks
+4. **Synaptic Intelligence (SI)**: Online tracking of parameter importance during training to penalize changes to important weights
+5. **PackNet**: Prunes unimportant weights and freezes important task-specific subnetworks to prevent interference
+6. **Experience Replay**: Stores and replays samples from previous tasks using reservoir sampling and 1:1 balanced training batches
+7. **Naive Rehearsal**: Combines current task with stored replay data using a simple FIFO buffer
 
 ### Metrics
 
@@ -53,10 +54,11 @@ catastrophic-forgetting-mitigation/
 │   ├── Baseline_task.ipynb           # Baseline on permuted MNIST
 │   ├── Baseline_class.ipynb          # Baseline on class-incremental MNIST
 │   ├── L2_permutated.ipynb           # L2 regularization on permuted MNIST
+│   ├── EWC_permutated.ipynb          # Elastic Weight Consolidation on permuted MNIST
 │   ├── SI_permutated.ipynb           # Synaptic Intelligence on permuted MNIST
 │   ├── packnet.ipynb                 # PackNet on permuted MNIST
-│   ├── experience_replay.ipynb       # Experience replay on class-incremental MNIST
-│   └── replay.ipynb                  # Naive rehearsal on class-incremental MNIST
+│   ├── experience_replay.ipynb       # Experience replay (reservoir + balanced) on class-incremental MNIST
+│   └── naive_rehearsal.ipynb         # Naive rehearsal on class-incremental MNIST
 │
 ├── Final Review Presentation.pptx    # Research findings presentation
 └── Project Report.pdf                # Complete analysis report
@@ -92,9 +94,10 @@ catastrophic-forgetting-mitigation/
 
 - **Trade-offs Observed**: Different methods excel at different aspects:
   - L2 regularization provides good forgetting mitigation with minimal overhead
-  - Experience replay offers the best accuracy but requires significant memory
-  - PackNet achieves good performance with parameter pruning
-  - Synaptic Intelligence provides interpretable importance tracking
+  - EWC offers superior task-aware protection compared to naive L2 by leveraging the Fisher Information Matrix
+  - Experience replay offers the best accuracy but requires significant memory; balanced reservoir sampling is key
+  - PackNet achieves excellent zero-forgetting performance by permanently freezing critical weights
+  - Synaptic Intelligence provides interpretable online importance tracking without needing post-task Fisher computation
 
 - **No Silver Bullet**: No single method dominates all scenarios; the choice depends on specific application requirements
 
@@ -126,7 +129,9 @@ All experiments use a fixed random seed (`seed=42`) for reproducibility.
 
 ## References
 
+- Kirkpatrick, J., et al. (2017). Overcoming catastrophic forgetting in neural networks. PNAS.
 - Zenke, F., Poole, B., & Ganguli, S. (2017). Continual Learning Through Synaptic Intelligence. ICML.
+- Mallya, A., & Lazebnik, S. (2018). PackNet: Adding Multiple Tasks to a Single Network by Iterative Pruning. CVPR.
 - Rusu, A. A., et al. (2016). Progressive Neural Networks. arXiv preprint arXiv:1606.04671.
 - Rebuffi, S. A., Kolesnikov, A., Sperl, G., & Lampert, C. H. (2017). iCaRL: Incremental Class Learning and Representation Learning. CVPR.
 - Rusu, A. A., et al. (2020). Passive Open-World Object Detection. arXiv preprint arXiv:1904.04998.

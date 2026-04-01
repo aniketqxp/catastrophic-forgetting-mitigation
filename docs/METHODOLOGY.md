@@ -100,7 +100,30 @@ where:
 
 ---
 
-### Method 3: Synaptic Intelligence (SI)
+### Method 3: Elastic Weight Consolidation (EWC)
+
+**Key Idea**: Protect parameters that are statistically important to previous tasks according to the Fisher Information Matrix.
+
+**Algorithm**:
+1. **Train** on task $t$
+2. **Compute Fisher Information Matrix** $F$ for the parameters using the task $t$ training data
+3. **Apply regularization** in task $t+1$:
+   $$\mathcal{L}_{\text{task}} = \mathcal{L}_{\text{CE}} + \frac{\lambda}{2} \sum_j F_j (w_j - w^*_j)^2$$
+
+**Hyperparameter**: $\lambda$ (default: 40.0)
+
+**Pros**:
+- Specifically identifies which parameters matter for past tasks
+- High theoretical grounding
+- Protects critical paths while freeing unimportant weights
+
+**Cons**:
+- Requires a post-task pass to compute the Fisher matrix
+- Diagonal Fisher approximation can sometimes be insufficient
+
+---
+
+### Method 4: Synaptic Intelligence (SI)
 
 **Key Idea**: Track parameter importance and penalize changes to important weights
 
@@ -129,19 +152,19 @@ where:
 
 ---
 
-### Method 4: PackNet (Progressive Pruning)
+### Method 5: PackNet (Progressive Pruning)
 
 **Key Idea**: Learn task-specific subnetworks by pruning and freezing weights
 
 **Algorithm**:
 
 1. **Train** on task $t$ with standard SGD
-2. **Prune** smallest magnitude weights (50% by default)
-3. **Freeze** pruned weights for all previous tasks
-4. **Allocate** unpruned weights to new task
+2. **Prune** unimportant free weights (70% by default)
+3. **Freeze** the currently important weights (30%) for all previous tasks
+4. **Allocate** the pruned (now free) weights to new tasks
 5. **Mask** application during inference to use task-specific subnetwork
 
-**Hyperparameter**: `pruning_rate` (default: 0.5)
+**Hyperparameter**: `keep_ratio` (default: 0.30 - keeps 30% per task)
 
 **Pros**:
 - Prevents catastrophic forgetting by freezing
@@ -155,7 +178,7 @@ where:
 
 ---
 
-### Method 5: Experience Replay (ER)
+### Method 6: Experience Replay (ER)
 
 **Key Idea**: Store and replay samples from previous tasks during training
 
@@ -171,13 +194,14 @@ for task in tasks:
             # Combine and train
             model.train(cat(x, x_replay), cat(y, y_replay))
     # Add current task data to buffer
-    buffer.add(current_task_data)
+    buffer.add(current_task_data, reservoir_sampling=True)
 ```
 
-**Hyperparameter**: `buffer_capacity` (default: 500)
+**Hyperparameter**: `buffer_capacity` (default: 2000), `batch_balancing` (1:1 ratio)
 
 **Pros**:
-- Theoretically optimal (ideal case: all data)
+- Reservoir sampling ensures equal representation of all past tasks
+- Balanced 1:1 batch ratios prevent recency bias
 - Can achieve near-optimal performance
 - Simple to implement
 
@@ -188,9 +212,9 @@ for task in tasks:
 
 ---
 
-### Method 6: Naive Rehearsal
+### Method 7: Naive Rehearsal
 
-**Key Idea**: Simple FIFO buffer without adaptive sampling
+**Key Idea**: Simple FIFO buffer without reservoir sampling or batch balancing.
 
 **Algorithm**:
 
@@ -263,10 +287,11 @@ Tracks computational overhead of each method.
 | Method | Parameter | Value | Rationale |
 |--------|-----------|-------|-----------|
 | L2 Reg | $\lambda$ | 0.01 | Balance regularization |
+| EWC | $\lambda$ | 40.0 | From Bayesian optimization |
 | SI | $\lambda$ | 0.1 | Stronger (weighted) regularization |
-| PackNet | Pruning Rate | 50% | Standard in literature |
-| ER | Buffer Capacity | 500 | ~10% of training set |
-| Naive Rehearsal | Buffer Size | 500 | Same as ER for fairness |
+| PackNet | Keep Ratio | 30% | Leaves capacity for later tasks |
+| ER | Buffer Capacity | 2000 | Reservoir sampled, balanced training |
+| Naive Rehearsal | Buffer Size | 2000 | Same limit as ER but simple FIFO |
 
 ---
 
@@ -304,10 +329,11 @@ Based on the literature and our implementation:
 |--------|---|---|---|---|
 | Baseline | ~40-50% | 70-80% | Fastest | Clear forgetting |
 | L2 Reg | ~15-25% | 80-85% | +5% | Good balance |
+| EWC | ~5-15% | 85-90% | +20% | Fisher matrix computation overhead |
 | SI | ~10-20% | 82-88% | +10% | Better than L2 |
-| PackNet | ~5-15% | 78-84% | +15% | Pruning overhead |
-| ER | ~2-5% | 88-93% | +25% | Best accuracy, memory cost |
-| Naive Rehearsal | ~5-10% | 84-89% | +20% | Simpler than ER |
+| PackNet | ~0-5% | 80-87% | +15% | Near-zero forgetting on frozen weights |
+| ER | ~2-5% | 88-93% | +25% | Best accuracy, balanced reservoir memory |
+| Naive Rehearsal | ~10-20% | 75-80% | +20% | Suffers from FIFO unbalancing |
 
 *Exact values depend on dataset, hyperparameters, and randomness. Re-runs may show minor variation.*
 
@@ -315,15 +341,17 @@ Based on the literature and our implementation:
 
 ## References & Related Work
 
-1. **Synaptic Intelligence**: Zenke, F., Poole, B., & Ganguli, S. (2017). "Continual Learning Through Synaptic Intelligence." ICML.
+1. **Elastic Weight Consolidation**: Kirkpatrick, J., et al. (2017). "Overcoming catastrophic forgetting in neural networks." PNAS.
 
-2. **PackNet**: Mallya, A., & Lazebnik, S. (2018). "PackNet: Adding Multiple Tasks to a Single Network by Iterative Pruning." CVPR.
+2. **Synaptic Intelligence**: Zenke, F., Poole, B., & Ganguli, S. (2017). "Continual Learning Through Synaptic Intelligence." ICML.
 
-3. **Experience Replay**: Lin, L. J. (1992). "Self-improving reactive agents based on reinforcement learning, planning and teaching." Machine Learning.
+3. **PackNet**: Mallya, A., & Lazebnik, S. (2018). "PackNet: Adding Multiple Tasks to a Single Network by Iterative Pruning." CVPR.
 
-4. **Continual Learning**: Rusu, A. A., et al. (2016). "Progressive Neural Networks." NIPS. Serra, J., et al. (2018). "Continual Learning with Deep Generative Replay." NIPS.
+4. **Experience Replay**: Lin, L. J. (1992). "Self-improving reactive agents based on reinforcement learning, planning and teaching." Machine Learning. Rebuffi, S. A. et al. (2017) "iCaRL".
 
-5. **Catastrophic Forgetting**: McCloskey, M., & Cohen, N. J. (1989). "Catastrophic Interference in Connectionist Networks: The Temporal Instability of Task Learning." Psychological Review.
+5. **Continual Learning**: Rusu, A. A., et al. (2016). "Progressive Neural Networks." NIPS. Serra, J., et al. (2018). "Continual Learning with Deep Generative Replay." NIPS.
+
+6. **Catastrophic Forgetting**: McCloskey, M., & Cohen, N. J. (1989). "Catastrophic Interference in Connectionist Networks: The Temporal Instability of Task Learning." Psychological Review.
 
 ---
 
@@ -347,9 +375,10 @@ Run these in sequence to compare methods:
 
 1. `Baseline_task.ipynb` (no protection)
 2. `L2_permutated.ipynb` (light regularization)
-3. `SI_permutated.ipynb` (adaptive regularization)
-4. `packnet.ipynb` (architectural protection)
-5. `experience_replay.ipynb` & `replay.ipynb` (memory-based)
+3. `EWC_permutated.ipynb` (Fisher-based regularization)
+4. `SI_permutated.ipynb` (adaptive online regularization)
+5. `packnet.ipynb` (architectural protection via pruning)
+6. `experience_replay.ipynb` & `naive_rehearsal.ipynb` (memory-based)
 
 Then compare results across final accuracy and forgetting tables.
 

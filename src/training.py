@@ -232,9 +232,9 @@ def train_task_with_replay(
         total = 0
 
         for inputs, labels in train_loader:
-            # Sample from the replay buffer
+            # Sample from the replay buffer to match current batch size (1:1 balance)
             if not replay_buffer.is_empty():
-                replay_inputs, replay_labels = replay_buffer.sample(batch_size // 2)
+                replay_inputs, replay_labels = replay_buffer.sample(len(inputs))
                 if replay_inputs is not None:
                     inputs = torch.cat((inputs, replay_inputs))
                     labels = torch.cat((labels, replay_labels))
@@ -261,4 +261,107 @@ def train_task_with_replay(
         
         print(f'Task {task_idx+1}, Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%')
     
+    return task_train_loss, task_train_acc
+
+
+def compute_fisher_matrix(model, task_loader, criterion):
+    """
+    Compute the Fisher Information Matrix for EWC.
+    
+    Args:
+        model: Neural network model
+        task_loader: DataLoader for the current task
+        criterion: Loss function
+        
+    Returns:
+        Dictionary mapping parameter names to their Fisher information matrix
+    """
+    model.eval()
+    fisher = {}
+    
+    # Initialize Fisher matrix
+    for name, param in model.named_parameters():
+        fisher[name] = torch.zeros_like(param)
+        
+    # Compute Fisher Information Matrix
+    for inputs, labels in task_loader:
+        model.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        
+        # Accumulate squared gradients
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                fisher[name] += param.grad.pow(2) / len(task_loader.dataset)
+                
+    return fisher
+
+
+def train_task_with_ewc(
+    model, task_idx: int, train_loader, criterion, optimizer, 
+    fisher_matrices=None, optimal_params=None, ewc_lambda: float = 40.0, epochs: int = 5
+):
+    """
+    Train model on a task using Elastic Weight Consolidation (EWC).
+    
+    Args:
+        model: Neural network model to train
+        task_idx: Index of current task
+        train_loader: DataLoader for training data
+        criterion: Loss function
+        optimizer: Optimizer for training
+        fisher_matrices: List of Fisher information matrices for previous tasks
+        optimal_params: List of optimal parameters for previous tasks
+        ewc_lambda: EWC regularization strength
+        epochs: Number of epochs to train
+        
+    Returns:
+        Tuple of (losses, accuracies) for each epoch
+    """
+    task_train_loss = []
+    task_train_acc = []
+    
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        for inputs, labels in train_loader:
+            # Forward pass
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            
+            # Add EWC penalty if there are previous tasks
+            if fisher_matrices and optimal_params:
+                ewc_loss = 0.0
+                for task_id, (fisher, optim_params) in enumerate(zip(fisher_matrices, optimal_params)):
+                    for name, param in model.named_parameters():
+                        # Compute EWC penalty: fisher * squared distance
+                        if name in fisher and name in optim_params:
+                            ewc_loss += (fisher[name] * (param - optim_params[name]).pow(2)).sum()
+                            
+                loss += (ewc_lambda / 2) * ewc_loss
+                
+            # Backward and optimize
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+            
+            # Calculate accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            
+        epoch_loss = running_loss / len(train_loader)
+        epoch_acc = 100 * correct / total
+        
+        task_train_loss.append(epoch_loss)
+        task_train_acc.append(epoch_acc)
+        
+        print(f'Task {task_idx+1}, Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%')
+        
     return task_train_loss, task_train_acc
