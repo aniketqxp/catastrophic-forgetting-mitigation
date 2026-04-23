@@ -17,19 +17,25 @@ The following diagram illustrates the data flow and mitigation pipeline:
 ```mermaid
 graph TD
     %% Node Definitions
-    A[/Data Stream/] --> B{Task Type}
-    B -->|Permuted MNIST| C[Task-Incremental]
-    B -->|Split MNIST| D[Class-Incremental]
+    A[/Data Stream/] --> B{Learning Scenario}
+    B -->|Task-ID Provided| C[Task-Incremental TIL]
+    B -->|Task-ID Missing / Split Classes| D[Class-Incremental CIL]
     
-    C --> E([L2/EWC/SI: Regularization])
-    C --> F([PackNet: Architectural])
-    D --> H([Replay/Rehearsal: Memory])
+    subgraph Mitigation Paradigm
+        direction LR
+        E([Regularization])
+        F([Architectural])
+        H([Replay-based])
+    end
     
-    E --> G[(Optimized Model)]
-    F --> G
-    H --> G
+    E -.->|Constrains Weights| G
+    F -.->|Isolates Subnetworks| G
+    H -.->|Buffers Samples| G
     
-    G --> I>Evaluation Metrics]
+    C --> E & F
+    D --> H
+    
+    G[(Preserved Knowledge Model)] --> I>Evaluation Metrics]
     I --> J[/Accuracy & Forgetting Results/]
 
     %% Styling
@@ -83,13 +89,13 @@ python main.py --method ewc --tasks 5 --epochs 5
 
 Detailed metrics and learning curves are generated for every run.
 
-### Training Accuracy Curves
-![Accuracy Curves](assets/Baseline_task_plot.png)
-*Figure 1: Comparison of accuracy preservation across sequential tasks.*
+### The Problem: Baseline Accuracy Collapse
+![Baseline CIL Collapse](assets/Baseline_class_plot_1.png)
+*Figure 1: Cumulative accuracy decay in a Class-Incremental scenario without mitigation.*
 
-### Knowledge Retention Analysis
-![Forgetting Analysis](assets/SI_permutated_plot.png)
-*Figure 2: Visualization of knowledge retention using Synaptic Intelligence (SI).*
+### The Solution: Selective Protection (EWC)
+![EWC Accuracy Preservation](assets/EWC_permutated_plot_1.png)
+*Figure 2: Task-specific accuracy preservation using Elastic Weight Consolidation (EWC).*
 
 ## Project Structure
 
