@@ -62,3 +62,6 @@ Thumbs.db
 
 # Internal Scripts
 scripts/
+
+# Private Manuals
+docs/TECHNICAL_DETAILS.md
