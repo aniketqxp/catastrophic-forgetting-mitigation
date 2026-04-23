@@ -21,9 +21,13 @@ wheels/
 *.egg
 
 # Virtual environments
+.venv/
 venv/
 env/
 ENV/
+
+# Environment files
+.env
 
 # IDE
 .vscode/
@@ -32,10 +36,18 @@ ENV/
 *.swo
 *~
 
-# Data
+# Data and Models
 data/
 outputs/
 results/
+*.tiff
+*.h5
+*.pt
+*.safetensors
+*.ckpt
+*.bin
+*.model
+*.weights
 
 # Jupyter
 .ipynb_checkpoints/
@@ -47,3 +59,6 @@ Thumbs.db
 
 # Git
 .git/
+
+# Internal Scripts
+scripts/
