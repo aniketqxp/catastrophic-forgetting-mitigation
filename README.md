@@ -100,7 +100,7 @@ Detailed metrics and learning curves are generated for every run.
 ## Project Structure
 
 ```text
-├── Code/                   # Original research notebooks
+├── notebooks/              # Original research notebooks
 ├── docs/                   # Extended methodology and reports
 ├── src/                    # Core library (Datasets, Models, Buffers)
 ├── assets/                 # Generated visualizations and plots

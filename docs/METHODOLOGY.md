@@ -361,7 +361,7 @@ Based on the literature and our implementation:
 
 ```bash
 # Start Jupyter
-jupyter notebook Code/
+jupyter notebook notebooks/
 
 # Open and run Baseline_task.ipynb to see:
 # - How catastrophic forgetting develops
